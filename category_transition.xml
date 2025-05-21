@@ -2,7 +2,7 @@
 <extension type="plugin" group="workflow" method="upgrade">
 	<name>plg_workflow_category_transition</name>
 	<author>Joomla! Project</author>
-	<creationDate>2025-04</creationDate>
+	<creationDate>2025-05</creationDate>
 	<copyright>(C) 2025 Open Source Matters, Inc.</copyright>
 	<license>GNU General Public License version 2 or later; see LICENSE.txt</license>
 	<authorEmail>admin@joomla.org</authorEmail>
@@ -24,10 +24,10 @@
 		<fields name="params">
 			<fieldset name="basic">
 				<field
-						name="default_category"
-						type="category"
-						extension="com_content"
-						label="PLG_WORKFLOW_CATEGORY_TRANSITION_LABEL"
+					name="default_category"
+					type="category"
+					extension="com_content"
+					label="PLG_WORKFLOW_CATEGORY_TRANSITION_LABEL"
 				/>
 			</fieldset>
 		</fields>

@@ -27,7 +27,7 @@ defined('_JEXEC') or die;
 /**
  * Workflow Category Transition Plugin
  *
- * @since  5.2.0
+ * @since  6.0.0
  */
 final class CategoryTransition extends CMSPlugin implements SubscriberInterface
 {
@@ -37,7 +37,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      * Load the language file on instantiation.
      *
      * @var    bool
-     * @since  4.0.0
+     * @since  6.0.0
      */
     protected $autoloadLanguage = true;
 
@@ -47,7 +47,6 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         return [
             'onContentPrepareForm'       => 'onContentPrepareForm',
             'onWorkflowAfterTransition'  => 'onWorkflowAfterTransition',
-            'onContentBeforeSave'        => 'onContentBeforeSave',
         ];
     }
 
@@ -56,13 +55,12 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @param   Model\PrepareFormEvent  $event  The event
      *
-     * @since   5.2.0
+     * @since   6.0.0
      */
     public function onContentPrepareForm(Model\PrepareFormEvent $event)
     {
         $form = $event->getForm();
         $data = $event->getData();
-
         $context = $form->getName();
 
         // Extend the transition form
@@ -71,7 +69,10 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
             return;
         }
 
-        if( $context === 'com_content.article'){
+        if ($context === 'com_content.article') {
+            if ($data && $data->id == null) {
+                return;
+            }
             $this->disableCategoryField($form, $data);
             return;
         }
@@ -86,7 +87,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  boolean
      *
-     * @since   4.0.0
+     * @since   6.0.0
      */
     protected function extendTransitionForm(Form $form, $data)
     {
@@ -113,83 +114,90 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     public static function onWorkflowAfterTransition(WorkflowTransitionEvent $event): void
     {
         $app = Factory::getApplication();
-        $context = $event->getArgument('extension');
         $pks = $event->getArgument('pks');
         $transition = $event->getArgument('transition');
 
-        if (!is_object($transition)) {
-            $app->enqueueMessage('Invalid transition object type', 'error');
+        if (!self::validateTransition($app, $transition)) {
             return;
         }
+
         $options = $transition->options ?? null;
+        $categoryId = $options->get('category_id');
 
-        if (!($options instanceof \Joomla\Registry\Registry)) {
-            $app->enqueueMessage('Transition options are not a valid Registry object', 'error');
+        if (!self::validatePrimaryKeys($app, $pks)) {
             return;
         }
 
-        $categoryId = (int) $options->get('category_id');
-
-        if ($categoryId <= 0) {
-            $app->enqueueMessage('Invalid category ID specified: ' . $categoryId, 'error');
-            return;
-        }
-
-        if (empty($pks) || !is_array($pks)) {
-            $app->enqueueMessage('No valid primary keys found', 'error');
-            return;
-        }
-
-        $form = new Form('com_content.article');
-        $form->loadFile(JPATH_ADMINISTRATOR . '/components/com_content/forms/article.xml');
-
-        // Process each article
         $processed = 0;
         $errors = 0;
+
         foreach ($pks as $pk) {
-            try {
-                // Load article table
-                $articleTable = Table::getInstance('Content');
-                if (!$articleTable->load($pk)) {
-                    $app->enqueueMessage('Article not found: ' . $pk, 'warning');
-                    $errorCount++;
-                    continue;
-                }
-                if ($articleTable->catid == $categoryId) {
-                    continue;
-                }
-
-                // Store original data for potential rollback
-                $originalData = clone $articleTable;
-                $articleTable->catid = $categoryId;
-
-                // Preserve modified data
-                $articleTable->modified = $originalData->modified;
-                $articleTable->modified_by = $originalData->modified_by;
-
-                if (!$articleTable->store()) {
-                    $app->enqueueMessage('Failed to update article ID ' . $pk . ': ' . $articleTable->getError(), 'error');
-                    $errors++;
-                    continue;
-                }
-
-                $processed++;
-
-            } catch (Exception $e) {
-                $app->enqueueMessage('Error processing article ' . $pk . ': ' . $e->getMessage(), 'error');
+            if (!self::processArticle($app, $pk, $categoryId)) {
                 $errors++;
+            } else {
+                $processed++;
             }
         }
 
         if ($errors > 0) {
             $app->enqueueMessage(sprintf('Encountered errors with %d articles', $errors), 'warning');
         }
-
     }
 
-
-    public function onContentBeforeSave(): void
+    private static function validateTransition($app, $transition): bool
     {
-        // future
+        if (!is_object($transition)) {
+            $app->enqueueMessage('Invalid transition object type', 'error');
+            return false;
+        }
+
+        if (!($transition->options instanceof \Joomla\Registry\Registry)) {
+            $app->enqueueMessage('Transition options are not a valid Registry object', 'error');
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function validatePrimaryKeys($app, $pks): bool
+    {
+        if (empty($pks) || !is_array($pks)) {
+            $app->enqueueMessage('No valid primary keys found', 'error');
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function processArticle($app, $pk, $categoryId): bool
+    {
+        $result = false;
+
+        try {
+            $articleTable = Table::getInstance('Content');
+            if (!$articleTable->load($pk)) {
+                $app->enqueueMessage('Article not found: ' . $pk, 'warning');
+            } elseif ($articleTable->catid == $categoryId) {
+                $result = true;
+            } else {
+                $originalData = clone $articleTable;
+                if ($categoryId && $categoryId > 0) {
+                    $articleTable->catid = $categoryId;
+                }
+
+                $articleTable->modified = $originalData->modified;
+                $articleTable->modified_by = $originalData->modified_by;
+
+                if (!$articleTable->store()) {
+                    $app->enqueueMessage('Failed to update article ID ' . $pk . ': ' . $articleTable->getError(), 'error');
+                } else {
+                    $result = true;
+                }
+            }
+        } catch (\RuntimeException $e) {
+            $app->enqueueMessage('Error processing article ' . $pk . ': ' . $e->getMessage(), 'error');
+        }
+
+        return $result;
     }
 }
