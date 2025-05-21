@@ -70,7 +70,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         }
 
         if ($context === 'com_content.article') {
-            if ($data && $data->id == null) {
+            if ($data && $data->id === null) {
                 return;
             }
             $this->disableCategoryField($form, $data);
@@ -100,7 +100,17 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         }
     }
 
-    protected function disableCategoryField(Form $form, $data)
+    /**
+     * Disable the category field in the article form.
+     *
+     * @param   Form      $form  The form
+     * @param   object    $data  The data
+     *
+     * @return  void
+     *
+     * @since   6.0.0
+     */
+    protected function disableCategoryField(Form $form)
     {
         // Get the current category ID value
         $catid = $form->getValue('catid');
@@ -110,7 +120,15 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     }
 
 
-
+    /**
+     * Method to handle the workflow transition event.
+     *
+     * @param   WorkflowTransitionEvent  $event  The event object
+     *
+     * @return  void
+     *
+     * @since   6.0.0
+     */
     public static function onWorkflowAfterTransition(WorkflowTransitionEvent $event): void
     {
         $app = Factory::getApplication();
@@ -122,20 +140,17 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         }
 
         $options = $transition->options ?? null;
-        $categoryId = $options->get('category_id');
+        $categoryId = (int) $options->get('category_id');
 
         if (!self::validatePrimaryKeys($app, $pks)) {
             return;
         }
 
-        $processed = 0;
         $errors = 0;
 
         foreach ($pks as $pk) {
             if (!self::processArticle($app, $pk, $categoryId)) {
                 $errors++;
-            } else {
-                $processed++;
             }
         }
 
@@ -144,6 +159,16 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         }
     }
 
+    /**
+     * Validate the transition object.
+     *
+     * @param   \Joomla\CMS\Factory  $app        The application object
+     * @param   object               $transition The transition object
+     *
+     * @return  bool
+     *
+     * @since   6.0.0
+     */
     private static function validateTransition($app, $transition): bool
     {
         if (!is_object($transition)) {
@@ -159,6 +184,16 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         return true;
     }
 
+    /**
+     * Validate the primary keys.
+     *
+     * @param   \Joomla\CMS\Factory  $app  The application object
+     * @param   array                $pks  The primary keys
+     *
+     * @return  bool
+     *
+     * @since   6.0.0
+     */
     private static function validatePrimaryKeys($app, $pks): bool
     {
         if (empty($pks) || !is_array($pks)) {
@@ -169,6 +204,17 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         return true;
     }
 
+    /**
+     * Process the article and update its category.
+     *
+     * @param   \Joomla\CMS\Factory  $app        The application object
+     * @param   int                  $pk         The primary key
+     * @param   int                  $categoryId The category ID
+     *
+     * @return  bool
+     *
+     * @since   6.0.0
+     */
     private static function processArticle($app, $pk, $categoryId): bool
     {
         $result = false;
