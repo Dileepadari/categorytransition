@@ -27,7 +27,7 @@ defined('_JEXEC') or die;
 /**
  * Workflow Category Transition Plugin
  *
- * @since  6.0.0
+ * @since  DEPLOY_VERSION
  */
 final class CategoryTransition extends CMSPlugin implements SubscriberInterface
 {
@@ -37,7 +37,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      * Load the language file on instantiation.
      *
      * @var    bool
-     * @since  6.0.0
+     * @since  DEPLOY_VERSION
      */
     protected $autoloadLanguage = true;
 
@@ -55,7 +55,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @param   Model\PrepareFormEvent  $event  The event
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     public function onContentPrepareForm(Model\PrepareFormEvent $event)
     {
@@ -87,7 +87,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  boolean
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     protected function extendTransitionForm(Form $form, $data)
     {
@@ -108,7 +108,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  void
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     protected function disableCategoryField(Form $form)
     {
@@ -127,7 +127,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  void
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     public static function onWorkflowAfterTransition(WorkflowTransitionEvent $event): void
     {
@@ -167,7 +167,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  bool
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     private static function validateTransition($app, $transition): bool
     {
@@ -192,7 +192,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  bool
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     private static function validatePrimaryKeys($app, $pks): bool
     {
@@ -213,7 +213,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @return  bool
      *
-     * @since   6.0.0
+     * @since   DEPLOY_VERSION
      */
     private static function processArticle($app, $pk, $categoryId): bool
     {
