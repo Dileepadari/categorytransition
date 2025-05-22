@@ -10,15 +10,18 @@
 
 namespace Joomla\Plugin\Workflow\CategoryTransition\Extension;
 
-use Joomla\CMS\Event\Model;
-use Joomla\CMS\Form\Form;
+use Joomla\CMS\Application\CMSApplicationInterface;
+use Joomla\CMS\Event\Model\PrepareFormEvent;
 use Joomla\CMS\Event\Workflow\WorkflowTransitionEvent;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Form\Form;
+use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\Workflow\WorkflowPluginTrait;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\SubscriberInterface;
+use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
 defined('_JEXEC') or die;
@@ -53,11 +56,11 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     /**
      * The form event.
      *
-     * @param   Model\PrepareFormEvent  $event  The event
+     * @param   PrepareFormEvent  $event  The event
      *
      * @since   DEPLOY_VERSION
      */
-    public function onContentPrepareForm(Model\PrepareFormEvent $event)
+    public function onContentPrepareForm(PrepareFormEvent $event)
     {
         $form = $event->getForm();
         $data = $event->getData();
@@ -139,10 +142,11 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
             return;
         }
 
-        $options = $transition->options ?? null;
+        $options = $transition->options;
         $categoryId = (int) $options->get('category_id');
 
-        if (!self::validatePrimaryKeys($app, $pks)) {
+        if (empty($pks) || !is_array($pks)) {
+            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_NO_PRIMARY_KEY'), 'error');
             return;
         }
 
@@ -155,14 +159,14 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         }
 
         if ($errors > 0) {
-            $app->enqueueMessage(sprintf('Encountered errors with %d articles', $errors), 'warning');
+            $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ERROR', $errors), 'warning');
         }
     }
 
     /**
      * Validate the transition object.
      *
-     * @param   \Joomla\CMS\Factory  $app        The application object
+     * @param   CMSApplicationInterface  $app        The application object
      * @param   object               $transition The transition object
      *
      * @return  bool
@@ -172,32 +176,17 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     private static function validateTransition($app, $transition): bool
     {
         if (!is_object($transition)) {
-            $app->enqueueMessage('Invalid transition object type', 'error');
+            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_INVALID_OBJECT_TYPE'), 'error');
             return false;
         }
 
-        if (!($transition->options instanceof \Joomla\Registry\Registry)) {
-            $app->enqueueMessage('Transition options are not a valid Registry object', 'error');
+        if (!($transition->options instanceof Registry)) {
+            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_INVALID_REGISTRY'), 'error');
             return false;
         }
 
-        return true;
-    }
-
-    /**
-     * Validate the primary keys.
-     *
-     * @param   \Joomla\CMS\Factory  $app  The application object
-     * @param   array                $pks  The primary keys
-     *
-     * @return  bool
-     *
-     * @since   DEPLOY_VERSION
-     */
-    private static function validatePrimaryKeys($app, $pks): bool
-    {
-        if (empty($pks) || !is_array($pks)) {
-            $app->enqueueMessage('No valid primary keys found', 'error');
+        if ($transition->options === null) {
+            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_NO_OPTIONS'), 'error');
             return false;
         }
 
@@ -207,7 +196,7 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     /**
      * Process the article and update its category.
      *
-     * @param   \Joomla\CMS\Factory  $app        The application object
+     * @param   CMSApplicationInterface  $app        The application object
      * @param   int                  $pk         The primary key
      * @param   int                  $categoryId The category ID
      *
@@ -222,7 +211,8 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         try {
             $articleTable = Table::getInstance('Content');
             if (!$articleTable->load($pk)) {
-                $app->enqueueMessage('Article not found: ' . $pk, 'warning');
+                $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_NOT_FOUND', $pk), 'warning');
+                return false;
             } elseif ($articleTable->catid == $categoryId) {
                 $result = true;
             } else {
@@ -235,13 +225,13 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
                 $articleTable->modified_by = $originalData->modified_by;
 
                 if (!$articleTable->store()) {
-                    $app->enqueueMessage('Failed to update article ID ' . $pk . ': ' . $articleTable->getError(), 'error');
+                    $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_UPDATE_FAILED', $pk, $categoryId) . ': ' . $articleTable->getError(), 'error');
                 } else {
                     $result = true;
                 }
             }
         } catch (\RuntimeException $e) {
-            $app->enqueueMessage('Error processing article ' . $pk . ': ' . $e->getMessage(), 'error');
+            $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_UPDATE_ERROR', $pk) . ': ' . $e->getMessage(), 'error');
         }
 
         return $result;
