@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <extension type="plugin" group="workflow" method="upgrade">
-	<name>plg_workflow_category_transition</name>
+	<name>plg_workflow_category</name>
 	<author>Joomla! Project</author>
-	<creationDate>2025-05</creationDate>
+	<creationDate>2025-06</creationDate>
 	<copyright>(C) 2025 Open Source Matters, Inc.</copyright>
 	<license>GNU General Public License version 2 or later; see LICENSE.txt</license>
 	<authorEmail>admin@joomla.org</authorEmail>
 	<authorUrl>www.joomla.org</authorUrl>
-	<version>1.0.0</version>
-	<description>PLG_WORKFLOW_CATEGORY_TRANSITION_DESC</description>
-	<namespace path="src">Joomla\Plugin\Workflow\CategoryTransition</namespace>
+	<version>6.0.0</version>
+	<description>PLG_WORKFLOW_CATEGORY_DESC</description>
+	<namespace path="src">Joomla\Plugin\Workflow\Category</namespace>
 	<files>
 		<folder>forms</folder>
 		<folder>language</folder>
 		<folder>src</folder>
-		<folder plugin="category_transition">services</folder>
+		<folder plugin="category">services</folder>
 	</files>
 	<languages>
-		<language tag="en-GB">language/en-GB/plg_workflow_category_transition.ini</language>
-		<language tag="en-GB">language/en-GB/plg_workflow_category_transition.sys.ini</language>
+		<language tag="en-GB">language/en-GB/plg_workflow_category.ini</language>
+		<language tag="en-GB">language/en-GB/plg_workflow_category.sys.ini</language>
 	</languages>
 	<config>
 		<fields name="params">
@@ -27,7 +27,7 @@
 					name="default_category"
 					type="category"
 					extension="com_content"
-					label="PLG_WORKFLOW_CATEGORY_TRANSITION_LABEL"
+					label="PLG_WORKFLOW_CATEGORY_LABEL"
 				/>
 			</fieldset>
 		</fields>

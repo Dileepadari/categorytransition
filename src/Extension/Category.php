@@ -2,22 +2,20 @@
 
 /**
  * @package     Joomla.Plugin
- * @subpackage  Workflow.category_transition
+ * @subpackage  Workflow.category
  *
  * @copyright   (C) 2025 Open Source Matters, Inc. <https://www.joomla.org>
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Joomla\Plugin\Workflow\CategoryTransition\Extension;
+namespace Joomla\Plugin\Workflow\Category\Extension;
 
-use Joomla\CMS\Application\CMSApplicationInterface;
 use Joomla\CMS\Event\Model\PrepareFormEvent;
 use Joomla\CMS\Event\Workflow\WorkflowTransitionEvent;
-use Joomla\CMS\Factory;
+use Joomla\CMS\Event\View\DisplayEvent;
 use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\Table\Table;
 use Joomla\CMS\Workflow\WorkflowPluginTrait;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\SubscriberInterface;
@@ -32,7 +30,7 @@ defined('_JEXEC') or die;
  *
  * @since  DEPLOY_VERSION
  */
-final class CategoryTransition extends CMSPlugin implements SubscriberInterface
+final class Category extends CMSPlugin implements SubscriberInterface
 {
     use WorkflowPluginTrait;
     use DatabaseAwareTrait;
@@ -44,10 +42,10 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      */
     protected $autoloadLanguage = true;
 
-
     public static function getSubscribedEvents(): array
     {
         return [
+            'onAfterDisplay'             => 'onAfterDisplay',
             'onContentPrepareForm'       => 'onContentPrepareForm',
             'onWorkflowAfterTransition'  => 'onWorkflowAfterTransition',
         ];
@@ -64,62 +62,108 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
     {
         $form = $event->getForm();
         $data = $event->getData();
+
         $context = $form->getName();
 
         // Extend the transition form
         if ($context === 'com_workflow.transition') {
-            $this->extendTransitionForm($form, $data);
+            $this->enhanceWorkflowTransitionForm($form, $data);
+
             return;
         }
 
         if ($context === 'com_content.article') {
-            if ($data && $data->id === null) {
+            if (empty($data && $data->id)) {
                 return;
             }
             $this->disableCategoryField($form, $data);
-            return;
         }
     }
 
     /**
-     * add certain fields in the item form view, when we want to take over this function in the transition
-     * Check also for the workflow implementation and if the field exists
+     * Manipulate the generic list view
      *
-     * @param   Form      $form  The form
-     * @param   object    $data  The data
+     * @param   DisplayEvent  $event
      *
-     * @return  boolean
+     * @return  void
+     *
+     * @since   4.0.0
+     */
+    public function onAfterDisplay(DisplayEvent $event)
+    {
+        if (!$this->getApplication()->isClient('administrator')) {
+            return;
+        }
+
+        $js = "
+            document.addEventListener('DOMContentLoaded', function()
+            {
+                var dropdown = document.getElementById('toolbar-status-group');
+                if (!dropdown){
+                    return;
+                }
+                var batchButton = document.getElementById('status-group-children-batch');
+                if (batchButton){
+                    batchButton.addEventListener('click', function()
+                    {
+                        var observer = new MutationObserver(function(mutations, observer) {
+                            var categorySelector = document.getElementById('batch-category-id');
+                            if (categorySelector) {
+                                categorySelector.disabled = true;
+                                observer.disconnect();
+                            }
+                        });
+
+                        observer.observe(document.body, { childList: true, subtree: true });
+                    });
+                }
+            });
+        ";
+
+        $this->getApplication()->getDocument()->addScriptDeclaration($js);
+    }
+
+    /**
+     * Check if the current plugin should execute workflow related activities
+     *
+     * @param   string  $context
+     *
+     * @return   boolean
      *
      * @since   DEPLOY_VERSION
      */
-    protected function extendTransitionForm(Form $form, $data)
+    protected function isSupported($context)
     {
-        // Get the plugin path
-        $path = JPATH_PLUGINS . '/' . $this->_type . '/' . $this->_name . '/forms/action.xml';
-
-        // Check if the form XML file exists and load it
-        if (is_file($path)) {
-            $form->loadFile($path);
-        }
+        return in_array($context, ['com_workflow.transition', 'com_content.article']);
     }
 
     /**
      * Disable the category field in the article form.
      *
      * @param   Form      $form  The form
-     * @param   object    $data  The data
+     * @param   \stdClass    $data  The data
      *
      * @return  void
      *
      * @since   DEPLOY_VERSION
      */
-    protected function disableCategoryField(Form $form)
+    protected function disableCategoryField(Form $form, $data)
     {
         // Get the current category ID value
         $catid = $form->getValue('catid');
 
         $form->setFieldAttribute('catid', 'readonly', 'true');
         $form->setFieldAttribute('catid', 'value', $catid);
+
+        $js = "
+            document.addEventListener('DOMContentLoaded', function() {
+                var categoryField = document.getElementById('jform_catid');
+                if (categoryField) {
+                    categoryField.disabled = true;
+                }
+            });
+        ";
+        $this->getApplication()->getDocument()->addScriptDeclaration($js);
     }
 
 
@@ -132,13 +176,14 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @since   DEPLOY_VERSION
      */
-    public static function onWorkflowAfterTransition(WorkflowTransitionEvent $event): void
+    public function onWorkflowAfterTransition(WorkflowTransitionEvent $event): void
     {
-        $app = Factory::getApplication();
+        $app = $this->getApplication();
         $pks = $event->getArgument('pks');
         $transition = $event->getArgument('transition');
 
-        if (!self::validateTransition($app, $transition)) {
+        if (!is_object($transition) || !($transition->options instanceof Registry) || empty($transition->options)) {
+            $app->enqueueMessage('PLG_WORKFLOW_CATEGORY_INVALID_TRANSITION');
             return;
         }
 
@@ -146,57 +191,26 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
         $categoryId = (int) $options->get('category_id');
 
         if (empty($pks) || !is_array($pks)) {
-            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_NO_PRIMARY_KEY'), 'error');
+            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_NO_PRIMARY_KEY'), 'error');
             return;
         }
 
         $errors = 0;
 
         foreach ($pks as $pk) {
-            if (!self::processArticle($app, $pk, $categoryId)) {
+            if (!self::processArticle($pk, $categoryId)) {
                 $errors++;
             }
         }
 
         if ($errors > 0) {
-            $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ERROR', $errors), 'warning');
+            $app->enqueueMessage(Text::plural('PLG_WORKFLOW_CATEGORY_ERRORS', $errors), 'warning');
         }
-    }
-
-    /**
-     * Validate the transition object.
-     *
-     * @param   CMSApplicationInterface  $app        The application object
-     * @param   object               $transition The transition object
-     *
-     * @return  bool
-     *
-     * @since   DEPLOY_VERSION
-     */
-    private static function validateTransition($app, $transition): bool
-    {
-        if (!is_object($transition)) {
-            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_INVALID_OBJECT_TYPE'), 'error');
-            return false;
-        }
-
-        if (!($transition->options instanceof Registry)) {
-            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_INVALID_REGISTRY'), 'error');
-            return false;
-        }
-
-        if ($transition->options === null) {
-            $app->enqueueMessage(Text::_('PLG_WORKFLOW_CATEGORY_TRANSITION_NO_OPTIONS'), 'error');
-            return false;
-        }
-
-        return true;
     }
 
     /**
      * Process the article and update its category.
      *
-     * @param   CMSApplicationInterface  $app        The application object
      * @param   int                  $pk         The primary key
      * @param   int                  $categoryId The category ID
      *
@@ -204,14 +218,20 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
      *
      * @since   DEPLOY_VERSION
      */
-    private static function processArticle($app, $pk, $categoryId): bool
+    private function processArticle($pk, $categoryId): bool
     {
+        $app = $this->getApplication();
         $result = false;
 
         try {
-            $articleTable = Table::getInstance('Content');
+
+            $component = $this->getApplication()->bootComponent('com_content');
+            $modelName = $component->getModelName('com_workflow.article');
+
+            $articleTable = $component->getMVCFactory()->createModel($modelName, $this->getApplication()->getName(), ['ignore_request' => true])
+                ->getTable();
             if (!$articleTable->load($pk)) {
-                $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_NOT_FOUND', $pk), 'warning');
+                $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_ARTICLE_NOT_FOUND', $pk), 'warning');
                 return false;
             } elseif ($articleTable->catid == $categoryId) {
                 $result = true;
@@ -225,13 +245,13 @@ final class CategoryTransition extends CMSPlugin implements SubscriberInterface
                 $articleTable->modified_by = $originalData->modified_by;
 
                 if (!$articleTable->store()) {
-                    $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_UPDATE_FAILED', $pk, $categoryId) . ': ' . $articleTable->getError(), 'error');
+                    $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_ARTICLE_UPDATE_FAILED', $pk, $categoryId), 'error');
                 } else {
                     $result = true;
                 }
             }
         } catch (\RuntimeException $e) {
-            $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_TRANSITION_ARTICLE_UPDATE_ERROR', $pk) . ': ' . $e->getMessage(), 'error');
+            $app->enqueueMessage(Text::sprintf('PLG_WORKFLOW_CATEGORY_ARTICLE_UPDATE_ERROR', $pk) . ': ' . $e->getMessage(), 'error');
         }
 
         return $result;

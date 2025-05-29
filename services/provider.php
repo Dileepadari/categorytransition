@@ -2,13 +2,13 @@
 
 /**
  * @package     Joomla.Plugin
- * @subpackage  Workflow.category_transition
+ * @subpackage  Workflow.category
  *
  * @copyright   (C) 2025 Open Source Matters, Inc. <https://www.joomla.org>
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-\defined(constant_name: '_JEXEC') or die;
+\defined('_JEXEC') or die;
 
 use Joomla\CMS\Extension\PluginInterface;
 use Joomla\CMS\Factory;
@@ -16,7 +16,7 @@ use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\DI\Container;
 use Joomla\DI\ServiceProviderInterface;
 use Joomla\Event\DispatcherInterface;
-use Joomla\Plugin\Workflow\CategoryTransition\Extension\CategoryTransition;
+use Joomla\Plugin\Workflow\Category\Extension\Category;
 
 return new class() implements ServiceProviderInterface {
     /**
@@ -33,9 +33,9 @@ return new class() implements ServiceProviderInterface {
         $container->set(
             PluginInterface::class,
             function (Container $container) {
-                $plugin = new CategoryTransition(
+                $plugin = new Category(
                     $container->get(DispatcherInterface::class),
-                    (array) PluginHelper::getPlugin('workflow', 'category_transition')
+                    (array) PluginHelper::getPlugin('workflow', 'category')
                 );
                 $plugin->setApplication(Factory::getApplication());
 
