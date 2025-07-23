@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <form>
     <fields name="options">
-        <fieldset name="actions"
+        <fieldset
+            name="actions"
             label="COM_WORKFLOW_TRANSITION_ACTIONS_LABEL"
         >
             <field
@@ -9,8 +10,11 @@
                 type="category"
                 label="PLG_WORKFLOW_CATEGORY_FIELD_CATEGORY_LABEL"
                 description="PLG_WORKFLOW_CATEGORY_FIELD_CATEGORY_DESC"
-                extension="com_content"
-            />
+                default=""
+                hide_all="true"
+            >
+                <option value="">JOPTION_DO_NOT_USE</option>
+            </field>
         </fieldset>
     </fields>
 </form>
